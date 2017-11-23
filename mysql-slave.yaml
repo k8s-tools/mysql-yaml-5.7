@@ -1,0 +1,62 @@
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: mysql-slave
+spec:
+  serviceName: mysql-slave
+  replicas: 3
+  selector:
+    matchLabels:
+      mysql: mysql-slave
+  volumeClaimTemplates:
+  - metadata:
+      name: ceph-rbd-sc-claim 
+      annotations:
+        volume.beta.kubernetes.io/storage-class: ceph-rbd-sc
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi
+  template:
+    metadata:
+      labels:
+        mysql: mysql-slave
+    spec:
+      containers:
+      - name: mysql-slave
+        image: 10.112.101.90/cloudzone/mysql-slave:5.7
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3306
+          name: mysql-slave
+        args:
+        - "--ignore-db-dir"
+        - "lost+found"
+        env:
+        - name: MYSQL_ROOT_USER
+          value: "root"
+        - name: MYSQL_ROOT_PASSWORD
+          value: "123456"
+        - name: MYSQL_REPLICATION_USER
+          value: "repl"
+        - name: MYSQL_REPLICATION_PASSWORD
+          value: "12345678"
+        volumeMounts:
+        - name: ceph-rbd-sc-claim
+          mountPath: /var/lib/mysql/
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: mysql-slave
+  name: mysql-slave
+spec:
+  ports:
+  - port: 3306
+    targetPort: 3306
+    nodePort: 8508
+  type: NodePort
+  selector:
+    mysql: mysql-slave
